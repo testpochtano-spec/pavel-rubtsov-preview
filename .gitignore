@@ -1,0 +1,20 @@
+# Publish only the current website and its runtime assets.
+# Local research, original attachments, old concepts and QA stay local.
+*
+!*/
+!/.gitignore
+!/.nojekyll
+!/index.html
+!/styles.css
+!/script.js
+!/media.js
+!/.github/README.md
+!/assets/fonts/golos-text-variable.woff2
+!/assets/fonts/GOLOS-OFL.txt
+!/assets/brand/pavel-rubtsov-monogram.png
+!/images/pavel/dark-portrait.png
+!/images/pavel/studio-portrait-enhanced.png
+!/images/properties/sadovaya-samotechnaya.jpg
+!/images/properties/sadovaya-samotechnaya-2.jpg
+!/images/media/moscow24-pavel-luxury.jpg
+!/images/media/moscow24-small-apartments.jpg
