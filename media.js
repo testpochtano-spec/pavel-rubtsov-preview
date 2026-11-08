@@ -42,22 +42,4 @@
     });
   }
 
-  const photo = document.querySelector('#property-photo');
-  const galleryControls = document.querySelector('.gallery-controls');
-  if (photo && galleryControls) {
-    const photos = [
-      { src: 'images/properties/sadovaya-samotechnaya.jpg', alt: 'Гостиная квартиры на Садовой-Самотёчной, 2/12 — фотография из объявления Павла' },
-      { src: 'images/properties/sadovaya-samotechnaya-2.jpg', alt: 'Другой ракурс квартиры на Садовой-Самотёчной, 2/12 — фотография из объявления Павла' }
-    ];
-    let index = 0;
-    const show = step => {
-      index = (index + step + photos.length) % photos.length;
-      photo.src = photos[index].src;
-      photo.alt = photos[index].alt;
-      document.querySelector('#gallery-count').textContent = `${index + 1} / ${photos.length}`;
-    };
-    galleryControls.hidden = false;
-    galleryControls.querySelector('[data-gallery-prev]').addEventListener('click', () => show(-1));
-    galleryControls.querySelector('[data-gallery-next]').addEventListener('click', () => show(1));
-  }
 })();

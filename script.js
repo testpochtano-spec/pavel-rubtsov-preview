@@ -1,224 +1,86 @@
-/* Без зависимостей. Весь контент и ссылки доступны в HTML.
-   FORM INTEGRATION: для реальной отправки задайте mode: 'webhook' и HTTPS endpoint.
-   Endpoint — ваш сервер-посредник, НЕ секретный URL CRM и НЕ Tilda Webhook receiver.
-   На Tilda используйте нативную форму: см. TILDA_IMPLEMENTATION.md. */
 (() => {
   'use strict';
-
-  const FORM_CONFIG = Object.freeze({
-    mode: 'demo', // 'demo' | 'webhook'
-    endpoint: '', // Например, собственный https://ваш-домен/api/leads
-    timeoutMs: 12000
-  });
-
-  const header = document.querySelector('.site-header');
-  const toggle = document.querySelector('.menu-toggle');
   const menu = document.querySelector('#mobile-menu');
-  const desktop = window.matchMedia('(min-width: 1100px)');
-
-  if (toggle && menu) {
-    document.body.classList.add('js-ready');
+  const toggle = document.querySelector('.menu-toggle');
+  const closeMenu = () => { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); toggle.querySelector('span').textContent = '+'; };
+  if (menu && toggle) {
     toggle.hidden = false;
-    const closeMenu = (restoreFocus = false) => {
-      menu.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.setAttribute('aria-label', 'Открыть меню');
-      if (restoreFocus) toggle.focus();
-    };
-    toggle.addEventListener('click', () => {
-      const isOpen = toggle.getAttribute('aria-expanded') === 'true';
-      menu.hidden = isOpen;
-      toggle.setAttribute('aria-expanded', String(!isOpen));
-      toggle.setAttribute('aria-label', isOpen ? 'Открыть меню' : 'Закрыть меню');
-    });
-    menu.addEventListener('click', event => {
-      if (event.target.closest('a')) closeMenu();
-    });
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && !menu.hidden) closeMenu(true);
-    });
-    document.addEventListener('click', event => {
-      if (!menu.hidden && !header.contains(event.target)) closeMenu();
-    });
-    header.addEventListener('focusout', event => {
-      if (event.relatedTarget && !header.contains(event.relatedTarget)) closeMenu();
-    });
-    desktop.addEventListener('change', () => closeMenu());
+    toggle.addEventListener('click', () => { const open = toggle.getAttribute('aria-expanded') !== 'true'; menu.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); toggle.querySelector('span').textContent = open ? '−' : '+'; });
+    menu.addEventListener('click', event => { if (event.target.closest('a')) closeMenu(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !menu.hidden) { closeMenu(); toggle.focus(); } });
+    matchMedia('(min-width:950px)').addEventListener('change', e => { if(e.matches) closeMenu(); });
   }
-
-  // Ссылка из описания услуги переносит тему, не перезаписывая введённый текст.
-  const task = document.querySelector('#client-task');
-  document.querySelectorAll('[data-task]').forEach(link => {
-    link.addEventListener('click', () => {
-      if (task && !task.value.trim()) task.value = `Хочу обсудить: ${link.dataset.task.toLowerCase()}.`;
-    });
-  });
-
-  // Нативные details: split-layout на desktop, обычный accordion на mobile.
-  // Все тексты в HTML; без JS можно раскрыть любой пункт.
-  const serviceItems = [...document.querySelectorAll('.service-item')];
-  const wideServices = window.matchMedia('(min-width: 900px)');
-  const hoverPointer = window.matchMedia('(hover: hover) and (pointer: fine)');
-  const openService = item => {
-    serviceItems.forEach(other => { other.open = other === item; });
-  };
-  serviceItems.forEach(item => {
-    const summary = item.querySelector('summary');
-    summary.addEventListener('click', event => {
-      if (!wideServices.matches) return;
-      event.preventDefault();
-      openService(item);
-    });
-    summary.addEventListener('mouseenter', () => {
-      if (wideServices.matches && hoverPointer.matches) openService(item);
-    });
-    item.addEventListener('toggle', () => {
-      if (!item.open) return;
-      serviceItems.forEach(other => { if (other !== item && other.open) other.open = false; });
-    });
-  });
-  wideServices.addEventListener('change', () => {
-    if (wideServices.matches && !serviceItems.some(item => item.open) && serviceItems[0]) openService(serviceItems[0]);
-  });
-
-  // Placeholder документов: нативный dialog поддерживает Escape и возврат фокуса.
-  const legalDialog = document.querySelector('#legal-dialog');
-  document.querySelectorAll('[data-legal]').forEach(button => {
-    button.addEventListener('click', event => {
-      event.preventDefault();
-      if (!legalDialog) return;
-      legalDialog.querySelector('#legal-title').textContent = button.dataset.legal === 'privacy'
-        ? 'Политика конфиденциальности'
-        : 'Согласие на обработку персональных данных';
-      legalDialog.showModal();
-    });
-  });
-  legalDialog?.addEventListener('click', event => {
-    if (event.target !== legalDialog) return;
-    const bounds = legalDialog.getBoundingClientRect();
-    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) legalDialog.close();
-  });
-
-  const year = document.querySelector('#current-year');
-  if (year) year.textContent = String(new Date().getFullYear());
-
+  // Preserve links from the previous preview when the catalogue became cases.
+  if (location.hash === '#properties') { location.replace('#cases'); }
   const form = document.querySelector('#contact-form');
   if (!form) return;
-  const fields = form.querySelector('#form-fields');
-  const name = form.elements.namedItem('name');
-  const phone = form.elements.namedItem('phone');
-  const consent = form.elements.namedItem('consent');
-  const submit = form.querySelector('[type="submit"]');
-  const submitText = submit.querySelector('span');
-  const status = form.querySelector('#form-status');
-  const errors = {
-    name: form.querySelector('#name-error'),
-    phone: form.querySelector('#phone-error'),
-    consent: form.querySelector('#consent-error')
-  };
-  let pending = false;
-
-  // Поддерживаем российские и международные номера; форматирование не навязываем.
-  const validPhone = value => {
-    const trimmed = value.trim();
-    if (!/^(?:\+)?[\d\s().-]+$/.test(trimmed)) return false;
-    const digits = trimmed.replace(/\D/g, '');
-    if (!trimmed.startsWith('+') && digits.length === 10) return true;
-    if (/^[78]/.test(digits) && (!trimmed.startsWith('+') || digits.startsWith('7'))) return digits.length === 11;
-    return trimmed.startsWith('+') ? digits.length >= 8 && digits.length <= 15 : digits.length === 10;
-  };
-
-  function validate(field) {
-    let message = '';
-    if (field === name && (name.value.trim().length < 2 || name.value.trim().length > 80)) message = 'Пожалуйста, укажите имя — от 2 до 80 символов.';
-    if (field === phone && !validPhone(phone.value)) message = 'Укажите полный номер: например, +7 (967) 076-07-08.';
-    if (field === consent && !consent.checked) message = 'Для отправки необходимо ваше согласие.';
-    errors[field.name].textContent = message;
-    if (message) field.setAttribute('aria-invalid', 'true');
-    else field.removeAttribute('aria-invalid');
-    return !message;
+  const config = JSON.parse(document.querySelector('#form-config').textContent);
+  const fields = document.querySelector('#form-fields');
+  const task = document.querySelector('#client-task');
+  const comment = document.querySelector('#client-comment');
+  const telegram = document.querySelector('#personal-telegram');
+  const name = document.querySelector('#client-name');
+  const contact = document.querySelector('#client-contact');
+  const consent = document.querySelector('#client-consent');
+  const submit = document.querySelector('#submit-lead');
+  const status = document.querySelector('#form-status');
+  fields.disabled = false;
+  form.noValidate = true;
+  let pending = false, challenge = null, requestId = null, serviceComment = '';
+  form.addEventListener('input', () => { if (!pending) requestId = null; });
+  document.querySelectorAll('[data-task]').forEach(a => a.addEventListener('click', () => {
+    task.value = a.dataset.task;
+    const title = a.dataset.service || a.dataset.task;
+    if (!comment.value.trim() || comment.value === serviceComment) {
+      serviceComment = title === 'Коммерческая недвижимость' ? 'Коммерческая недвижимость: ' : '';
+      comment.value = serviceComment;
+    }
+    telegram.href = 'https://t.me/pavelrubtsov1?text=' + encodeURIComponent('Павел, здравствуйте! Хочу обсудить: ' + title.toLowerCase() + '.');
+  }));
+  function announce(text, error = false) { status.hidden = false; status.textContent = text; status.classList.toggle('error', error); status.focus({preventScroll:true}); }
+  function setError(input, id, text) { document.querySelector(id).textContent = text; if(text) input.setAttribute('aria-invalid','true'); else input.removeAttribute('aria-invalid'); }
+  for (const [input,id] of [[name,'#name-error'],[contact,'#contact-error'],[task,'#task-error'],[consent,'#consent-error']]) input.addEventListener('input',()=>setError(input,id,''));
+  async function getChallenge() {
+    const response = await fetch(config.endpoint, {headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(10000)});
+    if (!response.ok) throw new Error('unavailable');
+    const data = await response.json();
+    if (!data.token || !Number.isFinite(data.issuedAt)) throw new Error('invalid challenge');
+    return data;
   }
-
-  [name, phone, consent].forEach(field => {
-    field.addEventListener('blur', () => validate(field));
-    field.addEventListener(field === consent ? 'change' : 'input', () => {
-      if (field.hasAttribute('aria-invalid')) validate(field);
-      if (!pending) status.hidden = true;
-    });
-  });
-  task?.addEventListener('input', () => { if (!pending) status.hidden = true; });
-
-  function announce(message, isError = false) {
-    status.textContent = message;
-    status.classList.toggle('is-error', isError);
-    status.hidden = false;
-    status.focus({ preventScroll: true });
-    status.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+  // No API request, cookies or telemetry in the approval preview.
+  if (config.enabled) {
+    consent.disabled = false;
+    submit.disabled = false;
+    const prepare = () => { if(!challenge) challenge = getChallenge().catch(()=>{challenge=null;return null;}); };
+    form.addEventListener('focusin',prepare,{once:true});
   }
-
-  // Регистрация обработчика ДО активации полей исключает отправку GET при ошибке инициализации.
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (pending) return;
-    status.hidden = true;
-    const invalid = [name, phone, consent].filter(field => !validate(field));
-    if (invalid.length) { invalid[0].focus(); return; }
-
-    if (FORM_CONFIG.mode === 'demo') {
-      announce('Форма заполнена верно. Это демонстрация: заявка не отправлена, данные не сохранены. Свяжитесь с Павлом по телефону +7 967 076-07-08 или в Telegram @pavelrubtsov1.');
-      return;
-    }
-
-    if (FORM_CONFIG.mode !== 'webhook' || !/^https:\/\//.test(FORM_CONFIG.endpoint)) {
-      announce('Отправка ещё не подключена. Позвоните Павлу: +7 967 076-07-08.', true);
-      return;
-    }
-
-    const payload = {
-      name: name.value.trim(),
-      phone: phone.value.trim(),
-      task: task?.value.trim() || '',
-      consent: consent.checked,
-      source: 'pavel-rubtsov-website'
-    };
-    pending = true;
-    fields.disabled = true;
-    submitText.textContent = 'Отправляем…';
-    form.setAttribute('aria-busy', 'true');
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), FORM_CONFIG.timeoutMs);
-
+    if (!config.enabled) { announce('Приём заявок через форму пока не подключён. Позвоните Павлу: +7 967 076-07-08.',true); return; }
+    const errors = [
+      [name,'#name-error', name.value.trim().length < 2 ? 'Укажите ваше имя.' : ''],
+      [contact,'#contact-error', contact.value.trim().length < 5 ? 'Укажите телефон или контакт в мессенджере.' : ''],
+      [task,'#task-error', !task.value ? 'Выберите тип задачи.' : ''],
+      [consent,'#consent-error', !consent.checked ? 'Для отправки заявки необходимо согласие.' : '']
+    ];
+    errors.forEach(args=>setError(...args));
+    const invalid=errors.find(x=>x[2]);
+    if(invalid){invalid[0].focus();return;}
+    pending=true; fields.disabled=true; form.setAttribute('aria-busy','true'); submit.textContent='Отправляем…';
+    const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),20000);
     try {
-      // Сервер должен провалидировать данные, обеспечить защиту от спама и
-      // вернуть { "ok": true } только после надёжного принятия заявки.
-      const response = await fetch(FORM_CONFIG.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-        credentials: 'omit',
-        cache: 'no-store',
-        referrerPolicy: 'no-referrer'
-      });
-      if (!response.ok) throw new Error('HTTP error');
-      const result = await response.json();
-      if (result.ok !== true) throw new Error('Unconfirmed submission');
-      form.reset();
-      announce('Спасибо! Заявка принята. Павел свяжется с вами по указанному телефону.');
-    } catch {
-      // Не утверждаем, что сервер не получил данные: ответ мог потеряться.
-      announce('Не удалось подтвердить отправку. Ваши поля сохранены на странице. Позвоните Павлу по номеру +7 967 076-07-08.', true);
-    } finally {
-      window.clearTimeout(timeout);
-      pending = false;
-      fields.disabled = false;
-      submitText.textContent = 'Отправить заявку';
-      form.removeAttribute('aria-busy');
-    }
+      challenge ||= getChallenge();
+      const token = await challenge;
+      if(!token) throw new Error('unavailable');
+      if(Date.now()/1000 - token.issuedAt < 3) { announce('Подождите несколько секунд и повторите отправку.',true); return; }
+      requestId ||= crypto.randomUUID();
+      const response=await fetch(config.endpoint, {method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},credentials:'same-origin',cache:'no-store',signal:controller.signal,body:JSON.stringify({name:name.value.trim(),contact:contact.value.trim(),task:task.value,comment:comment.value.trim(),consent:consent.checked,legalVersion:config.legalVersion,company_url:form.elements.company_url.value,token:token.token,issuedAt:token.issuedAt,requestId})});
+      const result=await response.json();
+      if(!response.ok || result.ok !== true) { if(result.code === 'expired') challenge=null; throw new Error('not confirmed'); }
+      form.reset(); requestId=null; challenge=null;
+      announce('Спасибо! Ваша заявка отправлена');
+    } catch { challenge=null; announce('Не удалось подтвердить отправку. Данные остались в форме. Попробуйте позже или позвоните Павлу: +7 967 076-07-08.',true); }
+    finally { clearTimeout(timeout); pending=false; fields.disabled=false; form.removeAttribute('aria-busy'); submit.textContent='Отправить заявку'; }
   });
-  form.noValidate = true;
-  fields.disabled = false;
-  if (FORM_CONFIG.mode === 'webhook' && /^https:\/\//.test(FORM_CONFIG.endpoint)) {
-    form.querySelector('#form-note').textContent = 'Оставьте контакты и несколько слов о вашей задаче.';
-  }
 })();

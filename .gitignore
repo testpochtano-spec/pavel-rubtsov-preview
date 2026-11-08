@@ -18,3 +18,22 @@
 !/images/properties/sadovaya-samotechnaya-2.jpg
 !/images/media/moscow24-pavel-luxury.jpg
 !/images/media/moscow24-small-apartments.jpg
+# Reviewed runtime for the client approval preview.
+!/favicon.svg
+!/robots.txt
+!/sitemap.xml
+!/images/pavel/portrait-03.webp
+!/images/pavel/portrait-03.jpg
+!/images/pavel/portrait-06.webp
+!/assets/brand/favicon-monogram.png
+# Backups contain their own ignore files: prune them explicitly.
+/backups/
+/content/
+/scripts/
+/server/
+/api/
+/qa/
+/output/
+/images/pavel/originals/
+**/.env
+**/.env.*
