@@ -19,6 +19,7 @@
   const task = document.querySelector('#client-task');
   const comment = document.querySelector('#client-comment');
   const telegram = document.querySelector('#personal-telegram');
+  const telegramBase = telegram.href;
   const name = document.querySelector('#client-name');
   const contact = document.querySelector('#client-contact');
   const consent = document.querySelector('#client-consent');
@@ -35,7 +36,9 @@
       serviceComment = title === 'Коммерческая недвижимость' ? 'Коммерческая недвижимость: ' : '';
       comment.value = serviceComment;
     }
-    telegram.href = 'https://t.me/pavelrubtsov1?text=' + encodeURIComponent('Павел, здравствуйте! Хочу обсудить: ' + title.toLowerCase() + '.');
+    const url = new URL(telegramBase);
+    url.searchParams.set('text', 'Павел, здравствуйте! Хочу обсудить: ' + title.toLowerCase() + '.');
+    telegram.href = url.href;
   }));
   function announce(text, error = false) { status.hidden = false; status.textContent = text; status.classList.toggle('error', error); status.focus({preventScroll:true}); }
   function setError(input, id, text) { document.querySelector(id).textContent = text; if(text) input.setAttribute('aria-invalid','true'); else input.removeAttribute('aria-invalid'); }
